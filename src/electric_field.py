@@ -3,7 +3,6 @@
 import numpy as np
 from scipy.sparse.linalg import splu
 import mfem.ser as mfem
-from helper_functions import mfem_sparse_to_csr
 
 
 # solve Poisson equation
@@ -29,14 +28,14 @@ class Electric_Field:
         sx.AddDomainIntegrator(mfem.DiffusionIntegrator(one))
         sx.Assemble()
         sx.Finalize()
-        self.Sx = mfem_sparse_to_csr(sx.SpMat())
+        self.Sx = sx.SpMat()
 
         # mass matrix for L2 elements
         mx_L2 = mfem.BilinearForm(self.fespace_L2)
         mx_L2.AddDomainIntegrator(mfem.MassIntegrator(one))
         mx_L2.Assemble()
         mx_L2.Finalize()
-        self.Mx_L2 = mfem_sparse_to_csr(mx_L2.SpMat())
+        self.Mx_L2 = mx_L2.SpMat()
 
         # set dof zero as dirichlet node -> rest is free
         ndofs = self.fespace_H1.GetNDofs()
@@ -82,12 +81,10 @@ class Electric_Field:
         ndof = self.fespace_L2.GetNDofs()
 
         # E_x = - d/dx phi (first ndof coefficients in gradient)
-        # periodic dofs are the same for L2
         Ex_data = self.Ex.GetDataArray()
         Ex_data[:] = -gradphi_data[:ndof]
 
         # E_y = - d/dy phi (second ndof coefficients in gradient)
-        # periodic dofs are the same for L2
         Ey_data = self.Ey.GetDataArray()
         Ey_data[:] = -gradphi_data[ndof:]
 
