@@ -29,6 +29,27 @@ rauc_max = 10
 visualization = False
 one = mfem.ConstantCoefficient(1.0)
 
+# create output directory
+outdir = "landau_damping_%i" % exe_index
+try:
+    os.makedirs(outdir)
+except FileExistsError:
+    if exe_index == 0:
+        shutil.rmtree(outdir)
+        os.makedirs(outdir)
+    else:
+        print("Warning: delete all old files")
+        print(f"rm -rf {outdir}")
+        sys.exit(2)
+
+fout = open("%s/out.txt" % outdir, "w")
+fout.write("#%9s %6s %20s %20s %20s %20s %20s %20s %20s\n"
+           % ("t", "rank", "el. energy",
+              "mass", "rel. err. mass",
+              "E_total", "rel. err. E_total",
+              "entropy", "rel. err. entropy"))
+fout.flush()
+
 # setting up time integration
 nt = int(np.round(termination/dt))
 dt = termination/nt
@@ -232,3 +253,13 @@ for i in range(nt):
     relerr_mass = np.abs((mass-mass_0)/mass_0)
     relerr_E_total = np.abs((E_total-E_total_0)/E_total_0)
     relerr_entropy = np.abs((entropy-entropy_0)/entropy_0)
+    
+    # write a table in a text file
+    fout.write("%10.4f %6i %20.10e %20.10e %20.10e %20.10e %20.10e %20.10e %20.10e\n"
+               % (t, S.shape[0], E_electric,
+                  mass, relerr_mass,
+                  E_total, relerr_E_total,
+                  entropy, relerr_entropy))
+    fout.flush()
+    print(f"{i+1}/{nt}: {t:10.6f} rank={S.shape[0]} |E|={E_electric:10.2e} " 
+        f"m: {err_mass:10.2e} E: {err_E_total:10.2e} S: {err_entropy:10.2e}")
