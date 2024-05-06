@@ -1,14 +1,16 @@
 # helper_functions contains RK3 ODE solver MFEM coefficients and sparse matrices
 
+import mfem.ser as mfem
 import numpy as np
 from scipy import sparse
 from scipy.io import savemat, loadmat
 from scipy.sparse.linalg import splu
-import mfem.ser as mfem
+from matrices import Mx, Mv, Mv_squared
+
 
 
 # time stepping one step ode solver
-def rk3_ssp_step(f, t0, dt, y0):
+def rungekutta_3(f, t0, dt, y0):
     k0 = dt * f(t0, y0)
     y1 = y0 + k0
     k1 = dt * f(t0 + dt, y1)
@@ -63,17 +65,21 @@ def L2_norm(X, S, V, Mx, Mv):
     Av = V.T @ (Mv @ V)
     return np.sqrt(np.sum((Ax @ S @ Av) * S))
 
+# computing major physical quantities
+def physical_quantities(X, S, V, E_electric):
+    # mass
+    rhoV = np.ones((1, fespacev.GetNDofs())) @ (Mv @ V)
+    mass = np.sum(Mx @ (X @ S @ rhoV.T).reshape(-1))
 
-# convert MFEM sparse matrix to scipy format
-def mfem_sparse_to_csr(A):
-    height = A.Height()
-    width = A.Width()
+    # kinetic energy
+    rhoV = np.ones((1, fespacev.GetNDofs())) @ (Mv_squared @ V)
+    E_kinetic = 0.5 * np.sum(Mx @ (X @ S @ rhoV.T).reshape(-1))
 
-    AD = A.GetDataArray().copy()
-    AI = A.GetIArray().copy()
-    AJ = A.GetJArray().copy()
-    A = sparse.csr_matrix((AD, AJ, AI), shape=(height, width))
-    return A
+    # total energy
+    E_total = E_kinetic + E_electric
+
+    entropy = L2_norm(X, S, V, Mx, Mv)**2
+    return mass, E_total, entropy
 
 # coefficient of MFEM returning first component x_1
 class x1(mfem.PyCoefficient):
@@ -89,3 +95,19 @@ class x2(mfem.PyCoefficient):
 class sum_squared(mfem.PyCoefficient):
     def EvalValue(self, x):
         return x[0]**2 + x[1]**2
+    
+# interpolation of initial conditions
+class X0_int(mfem.PyCoefficient):
+    def __init__(self):
+        super().__init__()
+        self.k = 0.5
+        self.alpha = 1e-2
+
+    def EvalValue(self, x):
+        return 1.0 \
+            + self.alpha * np.cos(self.k * x[0]) \
+            + self.alpha * np.cos(self.k * x[1])
+
+class V0_int(mfem.PyCoefficient):
+    def EvalValue(self, v):
+        return np.exp(-0.5 * (v[0]**2 + v[1]**2)) / (2.0 * np.pi)
